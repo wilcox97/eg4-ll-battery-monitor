@@ -1,0 +1,34 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect EG4 LL Battery",
+        "description": "Enter the Bluetooth MAC address of your EG4 LL battery.",
+        "data": {
+          "address": "Bluetooth MAC Address"
+        }
+      }
+    },
+    "error": {
+      "invalid_mac": "Invalid MAC address format (expected: 80:6F:B0:15:5E:71)"
+    },
+    "abort": {
+      "already_configured": "This battery is already configured"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "EG4 LL Battery Options",
+        "data": {
+          "charge_target_pct": "Charge target SOC (%)",
+          "low_soc_warn_pct": "Low battery warning threshold (%)"
+        },
+        "data_description": {
+          "charge_target_pct": "Target SOC for 'Time to X%' sensor. 80% for longevity, 100% before an outage.",
+          "low_soc_warn_pct": "SOC level that triggers the Low Battery binary sensor and alert."
+        }
+      }
+    }
+  }
+}

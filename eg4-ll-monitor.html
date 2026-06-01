@@ -1,0 +1,1054 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EG4 LL 400Ah Monitor</title>
+<style>
+  :root{
+    --bg:#0b0c0d; --panel:#16181a; --panel2:#1d2022; --line:#2a2e31;
+    --gold:#e8a93a; --gold-dim:#9c7327; --green:#3ecf6a; --red:#e0524a; --blue:#4a90d9;
+    --text:#eee; --text-dim:#9aa0a6; --mono:'SF Mono',Consolas,Monaco,monospace;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--bg); color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+    padding:16px; max-width:600px; margin:0 auto;
+  }
+  h1{font-size:1.1rem; color:var(--gold); margin:0 0 2px 0; letter-spacing:0.5px;}
+  .sub{color:var(--text-dim); font-size:0.8rem; margin-bottom:16px;}
+  .card{
+    background:var(--panel); border:1px solid var(--line); border-radius:14px;
+    padding:18px; margin-bottom:14px;
+  }
+  #connectBtn{
+    background:var(--gold); color:#1a1400; border:none; border-radius:10px;
+    padding:12px 20px; font-size:1rem; font-weight:600; cursor:pointer; width:100%;
+  }
+  #connectBtn.connected{background:var(--green); color:#06210e;}
+  #connectBtn:hover{filter:brightness(1.08);}
+  .status-dot{width:10px; height:10px; border-radius:50%; background:var(--red); display:inline-block; margin-right:8px;}
+  .status-dot.live{background:var(--green); box-shadow:0 0 8px var(--green);}
+  .statline{color:var(--text-dim); font-size:0.82rem; margin-top:8px;}
+  .err{color:var(--red); font-size:0.85rem; margin-top:10px; white-space:pre-wrap;}
+
+  .big-stats{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:14px;}
+  .stat{background:var(--panel2); border-radius:10px; padding:12px; text-align:center;}
+  .stat .val{font-size:1.5rem; font-weight:700; color:var(--gold);}
+  .stat .lbl{font-size:0.7rem; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.5px; margin-top:2px;}
+  .stat.full{grid-column:1 / -1;}
+  .stat .val.charging{color:var(--green);}
+  .stat .val.discharging{color:var(--red);}
+
+  .cells{display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-top:10px;}
+  .cell{background:var(--panel2); border-radius:8px; padding:10px 4px; text-align:center; border:1px solid var(--line);}
+  .cell .v{font-family:var(--mono); font-size:0.92rem; color:#fff;}
+  .cell .n{font-size:0.65rem; color:var(--text-dim); margin-top:2px;}
+  .cell.hi{border-color:var(--red);}
+  .cell.lo{border-color:var(--blue);}
+
+  .sectitle{color:var(--gold-dim); font-size:0.78rem; text-transform:uppercase; letter-spacing:0.5px; margin:14px 0 8px 0;}
+  .temps{display:grid; grid-template-columns:1fr 1fr; gap:8px;}
+  .temp{background:var(--panel2); border-radius:8px; padding:10px; text-align:center;}
+  .temp .v{font-size:1.1rem; color:var(--gold);}
+  .temp .n{font-size:0.68rem; color:var(--text-dim); margin-top:2px;}
+
+  details{margin-top:6px;}
+  summary{color:var(--gold-dim); cursor:pointer; font-size:0.85rem; padding:6px 0;}
+  .hexdump{
+    font-family:var(--mono); font-size:0.68rem; color:#7fd99a; background:#0a0a0a;
+    border-radius:8px; padding:10px; overflow-x:auto; white-space:pre-wrap; word-break:break-all; line-height:1.5;
+    border:1px solid var(--line); margin-top:8px;
+  }
+  .debugline{font-family:var(--mono); font-size:0.7rem; color:var(--text-dim); padding:2px 0;}
+  .debugline.ok{color:var(--green);}
+  .debugline.bad{color:var(--red);}
+  .graphBtn{
+    background:var(--panel2); color:var(--text-dim); border:1px solid var(--line);
+    border-radius:8px; padding:8px 4px; font-size:0.75rem; cursor:pointer;
+  }
+  .graphBtn:active{background:var(--line);}
+  .graphBtn:hover{background:var(--line); color:var(--text);}
+  .byteTable td, .byteTable th{padding:2px 4px; border-bottom:1px solid var(--line); text-align:left;}
+  .byteTable th{color:var(--gold-dim);}
+
+  /* ---- Desktop / wide-viewport layout ---- */
+  @media (min-width: 900px){
+    body{ max-width:1280px; padding:28px 32px; }
+    h1{ font-size:1.4rem; }
+    .sub{ font-size:0.9rem; margin-bottom:22px; }
+
+    /* Two-column page grid: left = connect/status + live data, right = graphs.
+       Info/debug panels span the full width below both columns. */
+    .page-grid{
+      display:grid;
+      grid-template-columns: 380px 1fr;
+      gap:18px;
+      align-items:start;
+    }
+    .page-grid .col-left{ display:flex; flex-direction:column; }
+    .page-grid .col-right{ display:flex; flex-direction:column; }
+    .full-width{ grid-column: 1 / -1; }
+
+    #connectBtn{ font-size:1.05rem; padding:14px 20px; }
+    .stat .val{ font-size:1.7rem; }
+
+    canvas#voltageGraph, canvas#currentGraph{
+      height:240px !important;
+    }
+
+    /* Info/debug panels arranged side-by-side on desktop instead of stacked */
+    .info-row{
+      display:grid;
+      grid-template-columns: 1fr 1.4fr 1fr;
+      gap:14px;
+      align-items:start;
+    }
+    .info-row .card{ margin-bottom:0; height:100%; }
+  }
+  @media (min-width: 1400px){
+    body{ max-width:1500px; }
+    .page-grid{ grid-template-columns: 420px 1fr; }
+  }
+</style>
+</head>
+<body>
+
+  <h1>⚡ EG4 LL — 400Ah Monitor</h1>
+  <div class="sub">Z122002264 · Modbus-over-BLE</div>
+
+  <div class="page-grid">
+    <div class="col-left">
+      <div class="card">
+        <button id="connectBtn">Connect to Battery</button>
+        <div class="statline"><span class="status-dot" id="statusDot"></span><span id="statusText">Not connected</span></div>
+        <div class="statline" id="lastUpdate"></div>
+        <div class="err" id="errMsg"></div>
+      </div>
+
+      <div class="card">
+        <div class="big-stats">
+          <div class="stat full">
+            <div class="val" id="vTotal">--.--V</div>
+            <div class="lbl">Pack Voltage</div>
+          </div>
+          <div class="stat">
+            <div class="val" id="current">--A</div>
+            <div class="lbl">Current</div>
+          </div>
+          <div class="stat">
+            <div class="val" id="soc">--%</div>
+            <div class="lbl">State of Charge</div>
+          </div>
+          <div class="stat">
+            <div class="val" id="capRemain">-- Ah</div>
+            <div class="lbl">Capacity Remaining</div>
+          </div>
+          <div class="stat">
+            <div class="val" id="soh">--%</div>
+            <div class="lbl">State of Health</div>
+          </div>
+        </div>
+
+        <div class="sectitle">Estimated Runtime</div>
+        <div class="big-stats">
+          <div class="stat">
+            <div class="val" id="runtimeDischarge">--</div>
+            <div class="lbl">Time to Empty (at current draw)</div>
+          </div>
+          <div class="stat">
+            <div class="val" id="runtimeCharge">--</div>
+            <div class="lbl">Time to Full (at current rate)</div>
+          </div>
+        </div>
+
+        <div class="sectitle">Cell Voltages</div>
+        <div class="cells" id="cellGrid"></div>
+
+        <div class="sectitle">Temperatures</div>
+        <div class="temps" id="tempGrid"></div>
+      </div>
+    </div>
+
+    <div class="col-right">
+      <div class="card">
+        <div class="sectitle" style="margin-top:0; display:flex; justify-content:space-between; align-items:center;">
+          <span>Voltage &amp; SOC History</span>
+          <select id="windowSelect" style="background:var(--panel2); color:var(--text); border:1px solid var(--line); border-radius:6px; padding:3px 6px; font-size:0.75rem;">
+            <option value="300000">5 min</option>
+            <option value="900000" selected>15 min</option>
+            <option value="1800000">30 min</option>
+            <option value="3600000">1 hour</option>
+            <option value="0">All</option>
+          </select>
+        </div>
+        <canvas id="voltageGraph" width="600" height="180" style="width:100%; height:180px; display:block; background:var(--panel2); border-radius:8px;"></canvas>
+        <div class="statline" style="display:flex; justify-content:space-between; margin-top:6px;">
+          <span><span style="color:var(--gold);">●</span> Voltage (V)</span>
+          <span><span style="color:var(--blue);">●</span> SOC (%)</span>
+          <span id="graphSpanV" style="color:var(--text-dim);"></span>
+        </div>
+
+        <div class="sectitle">Charge / Discharge Current History</div>
+        <canvas id="currentGraph" width="600" height="180" style="width:100%; height:180px; display:block; background:var(--panel2); border-radius:8px;"></canvas>
+        <div class="statline" style="display:flex; justify-content:space-between; margin-top:6px;">
+          <span><span style="color:var(--green);">●</span> Charging &nbsp; <span style="color:var(--red);">●</span> Discharging</span>
+          <span id="graphSpanC" style="color:var(--text-dim);"></span>
+        </div>
+
+        <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-top:10px;">
+          <button id="saveCsvBtn" class="graphBtn">Save CSV</button>
+          <button id="savePngBtn" class="graphBtn">Save PNGs</button>
+          <button id="clearGraphBtn" class="graphBtn">Clear History</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="full-width info-row">
+      <div class="card">
+        <details>
+          <summary>Hardware Info</summary>
+          <div class="statline" id="hwInfo">Connect to load — fetched once on connect</div>
+        </details>
+      </div>
+
+      <div class="card">
+        <details>
+          <summary>BMS Protection Limits &amp; Settings (hidden config)</summary>
+          <div class="statline" style="margin-bottom:8px;">Fetched once on connect — these are the BMS's internal safety thresholds, not normally shown in any app. All fields confirmed against a real capture from this battery.</div>
+          <div id="bmsConfig" class="hexdump" style="color:var(--text);">Connect to load…</div>
+
+          <details style="margin-top:10px;">
+            <summary style="font-size:0.78rem;">Raw bytes (for fixing offsets if values above look wrong)</summary>
+            <div class="hexdump" id="bmsConfigRaw">No data yet</div>
+            <table class="byteTable" id="bmsConfigByteTable" style="width:100%; border-collapse:collapse; font-family:var(--mono); font-size:0.65rem; margin-top:8px;"></table>
+          </details>
+        </details>
+      </div>
+
+      <div class="card">
+        <details>
+          <summary>Debug / connection log</summary>
+          <div id="debugLog"></div>
+          <div class="sectitle" style="margin-top:10px;">Last raw packet</div>
+          <div class="hexdump" id="hexdump">No data yet</div>
+        </details>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const SERVICE_UUID = '00001000-0000-1000-8000-00805f9b34fb';
+    const NOTIFY_CHAR   = '00001002-0000-1000-8000-00805f9b34fb'; // RX - notifications
+    const WRITE_CHAR     = '00001001-0000-1000-8000-00805f9b34fb'; // TX - confirmed via aiobmsble's real EG4 LL driver (NOT 0x1003)
+
+    const connectBtn = document.getElementById('connectBtn');
+    const statusDot  = document.getElementById('statusDot');
+    const statusText = document.getElementById('statusText');
+    const lastUpdate = document.getElementById('lastUpdate');
+    const errMsg     = document.getElementById('errMsg');
+    const hexdumpEl  = document.getElementById('hexdump');
+    const debugLog   = document.getElementById('debugLog');
+
+    let device, server, notifyChar, writeChar;
+    let everReceivedData = false;
+    let watchdogTimer = null;
+    let pollActive = false;
+    let awaitingResponse = false;
+    let expectedReplyLen = 83; // changes depending on which command was last sent
+    let lastResponseFrame = null;
+
+    // Rolling history for graphs + CSV export. Each entry: {t: Date.now(), voltage, soc, current}
+    // Capped generously (not at the old 1.2hr limit) so "All" view and CSV export
+    // can cover a full session; the scrolling window selector controls what's drawn.
+    const HISTORY_MAX = 20000; // many hours at a typical few-second poll rate
+    let history = [];
+
+    function log(msg, cls){
+      const line = document.createElement('div');
+      line.className = 'debugline' + (cls ? ' ' + cls : '');
+      line.textContent = new Date().toLocaleTimeString() + '  ' + msg;
+      debugLog.prepend(line);
+      while (debugLog.children.length > 40) debugLog.removeChild(debugLog.lastChild);
+    }
+
+    function setStatus(connected, text){
+      statusDot.classList.toggle('live', connected);
+      statusText.textContent = text;
+      connectBtn.textContent = connected ? 'Disconnect' : 'Connect to Battery';
+      connectBtn.className = connected ? 'connected' : '';
+    }
+
+    // ---- Modbus CRC-16 (poly 0xA001, init 0xFFFF, little-endian appended) ----
+    function modbusCRC16(bytes){
+      let crc = 0xFFFF;
+      for (let b of bytes){
+        crc ^= b;
+        for (let i = 0; i < 8; i++){
+          if (crc & 1){ crc = (crc >> 1) ^ 0xA001; }
+          else { crc >>= 1; }
+        }
+        crc &= 0xFFFF;
+      }
+      return crc;
+    }
+
+    function buildCommand(bmsId, funcBytes){
+      // funcBytes e.g. [0x03,0x00,0x00,0x00,0x27] for cell-data read
+      const payload = [bmsId, ...funcBytes];
+      const crc = modbusCRC16(payload);
+      const crcLo = crc & 0xFF, crcHi = (crc >> 8) & 0xFF;
+      return new Uint8Array([...payload, crcLo, crcHi]);
+    }
+
+    // Cell-data read command for BMS ID 1 — confirmed: 01 03 00 00 00 27 05 D0
+    const CELL_READ_CMD = buildCommand(0x01, [0x03, 0x00, 0x00, 0x00, 0x27]);
+    // Hardware info (model/firmware/serial) — confirmed from tuxntoast/eg4-ll: 01 03 00 69 00 17 D5 D8
+    const HW_INFO_CMD = buildCommand(0x01, [0x03, 0x00, 0x69, 0x00, 0x17]);
+    // BMS protection limits/config — confirmed from tuxntoast/eg4-ll: 01 03 00 2D 00 5B 94 38
+    const BMS_CONFIG_CMD = buildCommand(0x01, [0x03, 0x00, 0x2D, 0x00, 0x5B]);
+
+    async function connect(){
+      errMsg.textContent = '';
+      if (!navigator.bluetooth){
+        errMsg.textContent = 'Web Bluetooth not supported. Use Chrome/Edge.';
+        return;
+      }
+      try{
+        device = await navigator.bluetooth.requestDevice({
+          filters: [{ services: [SERVICE_UUID] }],
+          optionalServices: [SERVICE_UUID, 'f000ffd0-0451-4000-b000-000000000000']
+        });
+        device.addEventListener('gattserverdisconnected', onDisconnected);
+        setStatus(false, 'Connecting…');
+        log('Connecting to ' + (device.name || device.id) + '…');
+
+        server = await device.gatt.connect();
+        log('GATT connected', 'ok');
+
+        const service = await server.getPrimaryService(SERVICE_UUID);
+        notifyChar = await service.getCharacteristic(NOTIFY_CHAR);
+        writeChar  = await service.getCharacteristic(WRITE_CHAR);
+        log('Found notify (0x1002) and write (0x1001) characteristics', 'ok');
+
+        notifyChar.addEventListener('characteristicvaluechanged', onData);
+        log('Listener attached');
+
+        // Chrome blocks direct writes to the CCCD (0x2902) descriptor by design —
+        // startNotifications() handles that internally. We just verify it took effect.
+        await notifyChar.startNotifications();
+        log('startNotifications() resolved', 'ok');
+
+        try {
+          const cccd = await notifyChar.getDescriptor('00002902-0000-1000-8000-00805f9b34fb');
+          const val = await cccd.readValue();
+          const bytes = new Uint8Array(val.buffer);
+          log('CCCD readback: 0x' + hex(bytes) + (bytes[0] === 1 ? ' (notify ON)' : ' (NOT enabled!)'), bytes[0] === 1 ? 'ok' : 'bad');
+        } catch(descErr){
+          log('Could not read CCCD: ' + descErr.message);
+        }
+
+        log('MTU: ' + (device.gatt && device.gatt.device && device.gatt.device.mtu ? device.gatt.device.mtu : 'unknown (Chrome does not always expose this)'));
+
+        setStatus(true, 'Connected — ' + (device.name || device.id));
+
+        // One-shot fetches: hardware info + BMS protection limits, then start regular polling.
+        // These are static config that doesn't change, so no need to repeat them.
+        fetchOnConnectInfo();
+
+      } catch(e){
+        errMsg.textContent = 'Connection failed: ' + e.message;
+        log('ERROR: ' + e.message, 'bad');
+        setStatus(false, 'Not connected');
+      }
+    }
+
+    async function fetchOnConnectInfo(){
+      try {
+        log('Fetching hardware info…');
+        const hwFrame = await sendCommandAndWait(HW_INFO_CMD, 51);
+        if (hwFrame) renderHwInfo(hwFrame);
+      } catch(e){
+        log('Hardware info fetch failed: ' + e.message, 'bad');
+      }
+
+      await new Promise(r => setTimeout(r, 500));
+
+      try {
+        log('Fetching BMS protection limits…');
+        const cfgFrame = await sendCommandAndWait(BMS_CONFIG_CMD, 187);
+        if (cfgFrame) renderBmsConfig(cfgFrame);
+      } catch(e){
+        log('BMS config fetch failed: ' + e.message, 'bad');
+      }
+
+      // Now start the regular live-data polling loop
+      pollActive = true;
+      pollLoop();
+    }
+
+    // Generic one-shot command: send it, wait for a response matching the expected
+    // reply length, return the validated frame (or null on timeout/CRC failure).
+    async function sendCommandAndWait(cmd, replyLen, timeoutMs = 5000){
+      expectedReplyLen = replyLen;
+      lastResponseFrame = null;
+      awaitingResponse = true;
+      try {
+        try { await writeChar.writeValueWithResponse(cmd); }
+        catch(_) { await writeChar.writeValueWithoutResponse(cmd); }
+        log('Sent → 0x1001: ' + hex(cmd));
+      } catch(e){
+        awaitingResponse = false;
+        log('Write failed: ' + e.message, 'bad');
+        return null;
+      }
+      const start = Date.now();
+      while (awaitingResponse && (Date.now() - start) < timeoutMs){
+        await new Promise(r => setTimeout(r, 100));
+      }
+      awaitingResponse = false;
+      return lastResponseFrame;
+    }
+
+    // Self-scheduling poll loop: send a request, then WAIT for that specific response
+    // (or a timeout) before sending the next one. Avoids overlapping requests, which
+    // was causing the device to occasionally return two frames concatenated together.
+    async function pollLoop(){
+      while (pollActive && device && device.gatt && device.gatt.connected){
+        const frame = await sendCommandAndWait(CELL_READ_CMD, 83, 4000);
+        if (!frame){
+          log('Poll timed out waiting for response', 'bad');
+        }
+        // Idle gap between successful read and next poll
+        await new Promise(r => setTimeout(r, 2000));
+      }
+    }
+
+    function hex(bytes){
+      return Array.from(bytes).map(x => x.toString(16).padStart(2,'0').toUpperCase()).join(' ');
+    }
+
+    function onDisconnected(){
+      setStatus(false, 'Disconnected');
+      log('Disconnected', 'bad');
+      clearTimeout(watchdogTimer);
+      pollActive = false;
+      awaitingResponse = false;
+      everReceivedData = false;
+    }
+
+    async function disconnect(){
+      clearTimeout(watchdogTimer);
+      pollActive = false;
+      awaitingResponse = false;
+      if (device && device.gatt.connected){ device.gatt.disconnect(); }
+      setStatus(false, 'Not connected');
+    }
+
+    connectBtn.addEventListener('click', () => {
+      if (device && device.gatt.connected) disconnect();
+      else connect();
+    });
+
+    // ---- Modbus CRC validation on received packets ----
+    function validCRC(bytes){
+      if (bytes.length < 3) return false;
+      const payload = bytes.slice(0, bytes.length - 2);
+      const received = bytes[bytes.length-2] | (bytes[bytes.length-1] << 8);
+      return modbusCRC16(payload) === received;
+    }
+
+    function onData(event){
+      everReceivedData = true;
+      clearTimeout(watchdogTimer);
+      const dv = event.target.value;
+      let bytes = new Uint8Array(dv.buffer);
+      hexdumpEl.textContent = hex(bytes) + '  (' + bytes.length + ' bytes)';
+
+      if (bytes.length < 5){
+        log(`Short/invalid packet (${bytes.length} bytes) — ignoring`, 'bad');
+        return;
+      }
+
+      const target = expectedReplyLen || bytes.length;
+      if (bytes.length < target){
+        log(`Partial packet (${bytes.length}/${target} bytes) — ignoring`, 'bad');
+        return;
+      }
+      if (bytes.length > target){
+        // Device sent multiple frames back-to-back in one notification — take just the first
+        log(`Oversized packet (${bytes.length} bytes, expected ${target}) — trimming to first frame`, 'bad');
+        bytes = bytes.slice(0, target);
+      }
+      if (!validCRC(bytes)){
+        log('CRC check failed — ignoring packet', 'bad');
+        return;
+      }
+      log('Valid packet received (CRC ok, ' + bytes.length + ' bytes)', 'ok');
+
+      lastResponseFrame = bytes;
+      awaitingResponse = false;
+
+      // Only the 83-byte cell-data reply drives the live telemetry display.
+      if (bytes.length === 83 && bytes[2] === 0x4E){
+        decodeAndRender(bytes);
+        lastUpdate.textContent = 'Last update: ' + new Date().toLocaleTimeString();
+      }
+    }
+
+    // ---- Field decode, confirmed against aiobmsble's real EG4 LL driver (eg4_bms.py) ----
+    function u16(b,o){ return (b[o]<<8) | b[o+1]; }
+    function s16(b,o){ const v = u16(b,o); return v >= 0x8000 ? v - 0x10000 : v; }
+    function u32(b,o){ return (b[o]<<24)|(b[o+1]<<16)|(b[o+2]<<8)|b[o+3]; }
+    function s8(b,o){ return b[o] >= 0x80 ? b[o]-0x100 : b[o]; }
+
+    function decodeAndRender(b){
+      const voltage = u16(b,3) / 100;
+      const currentRaw = s16(b,5) / 10;   // confirmed: real driver uses /10, not /100
+      const cellCount = Math.min(u16(b,75), 16);
+      const capRemain = u16(b,45) / 10;   // cycle_charge, 0.1 Ah units -> Ah
+      const soh = u16(b,49);              // battery_health
+      const soc = u16(b,51);              // battery_level
+      const tempMos = s16(b,39);
+      const cycles = u32(b,61);
+
+      document.getElementById('vTotal').textContent = voltage.toFixed(2) + 'V';
+
+      // Record history point + redraw graphs
+      history.push({ t: Date.now(), voltage, soc, current: currentRaw });
+      if (history.length > HISTORY_MAX) history.shift();
+      drawGraphs();
+
+      const curEl = document.getElementById('current');
+      curEl.textContent = Math.abs(currentRaw).toFixed(2) + 'A';
+      curEl.className = 'val ' + (currentRaw > 0.02 ? 'charging' : currentRaw < -0.02 ? 'discharging' : '');
+
+      document.getElementById('soc').textContent = soc + '%';
+      document.getElementById('capRemain').textContent = capRemain.toFixed(1) + ' Ah';
+      document.getElementById('soh').textContent = soh + '%';
+
+      // ---- Runtime estimation ----
+      // Discharge: simple capacity / current. Charge: time to fill remaining headroom
+      // at current charge rate, both naive linear estimates (real tapering near
+      // full/empty isn't modeled, so treat these as ballpark, not precise).
+      const designCap = capRemain > 0 ? Math.max(capRemain, u16(b,77)/10) : 400; // fallback to nameplate
+      const dischargeEl = document.getElementById('runtimeDischarge');
+      const chargeEl = document.getElementById('runtimeCharge');
+
+      if (currentRaw < -0.05){
+        // Discharging
+        const hours = capRemain / Math.abs(currentRaw);
+        dischargeEl.textContent = formatDuration(hours);
+        dischargeEl.parentElement.style.display = '';
+        chargeEl.parentElement.style.display = 'none';
+      } else if (currentRaw > 0.05){
+        // Charging — estimate against nameplate capacity (400Ah) since design_capacity
+        // register reflects total pack size, not a moving target
+        const nameplate = (u16(b,77) / 10) || 400;
+        const remainingToFull = Math.max(nameplate - capRemain, 0);
+        const hours = remainingToFull / currentRaw;
+        chargeEl.textContent = formatDuration(hours);
+        chargeEl.parentElement.style.display = '';
+        dischargeEl.parentElement.style.display = 'none';
+      } else {
+        dischargeEl.textContent = '—';
+        chargeEl.textContent = '—';
+        dischargeEl.parentElement.style.display = '';
+        chargeEl.parentElement.style.display = '';
+      }
+
+      // Cells start at byte offset 7, big-endian mV pairs
+      const cells = [];
+      for (let i = 0; i < cellCount; i++){
+        cells.push(u16(b, 7 + i*2) / 1000);
+      }
+      const maxC = Math.max(...cells), minC = Math.min(...cells);
+      const grid = document.getElementById('cellGrid');
+      grid.innerHTML = '';
+      grid.style.gridTemplateColumns = `repeat(${Math.min(cellCount,8)},1fr)`;
+      cells.forEach((c,i) => {
+        const div = document.createElement('div');
+        div.className = 'cell' + (c===maxC && maxC!==minC ? ' hi' : '') + (c===minC && maxC!==minC ? ' lo' : '');
+        div.innerHTML = `<div class="v">${c.toFixed(3)}V</div><div class="n">Cell ${i+1}</div>`;
+        grid.appendChild(div);
+      });
+
+      // Temps: signed 8-bit starting at offset 69 (up to 6 sensors per real driver)
+      const temps = [{ label: 'PCB / MOS', val: tempMos }];
+      for (let i = 0; i < 6; i++){
+        const t = s8(b, 69 + i);
+        if (t !== 0) temps.push({ label: `Cell Temp ${i+1}`, val: t });
+      }
+
+      const tGrid = document.getElementById('tempGrid');
+      tGrid.innerHTML = '';
+      temps.forEach(t => {
+        const div = document.createElement('div');
+        div.className = 'temp';
+        div.innerHTML = `<div class="v">${t.val}°C / ${Math.round(t.val*9/5+32)}°F</div><div class="n">${t.label}</div>`;
+        tGrid.appendChild(div);
+      });
+    }
+
+    function formatDuration(hours){
+      if (!isFinite(hours) || hours < 0) return '—';
+      if (hours > 999) return '999h+';
+      const h = Math.floor(hours);
+      const m = Math.round((hours - h) * 60);
+      if (h === 0) return `${m}m`;
+      return `${h}h ${m}m`;
+    }
+
+    // ---- Hardware info decode ----
+    // Offsets confirmed from tuxntoast/eg4-ll read_hw_details():
+    //   bytes 2:25  -> model/make string
+    //   bytes 27:33 -> hardware/firmware version string
+    //   bytes 33:48 -> serial number string
+    function decodeAsciiRange(b, start, end){
+      let out = '';
+      for (let i = start; i < end && i < b.length; i++){
+        if (b[i] === 0) break;
+        out += String.fromCharCode(b[i]);
+      }
+      return out.trim();
+    }
+
+    function renderHwInfo(b){
+      // Model string offset shifted -1 from the original tuxntoast/eg4-ll value:
+      // a real capture showed it was missing its leading character (e.g. "LFP-..."
+      // instead of "PLFP-..."), confirmed against the same model string embedded
+      // in the BMS config frame. Version/serial keep their original relative
+      // spacing after that correction.
+      const make = decodeAsciiRange(b, 1, 25);
+      const version = decodeAsciiRange(b, 27, 33);
+      const serial = decodeAsciiRange(b, 33, 49);
+      document.getElementById('hwInfo').innerHTML = `
+        <div><b>Model:</b> ${make || '(unreadable)'}</div>
+        <div><b>Firmware/HW version:</b> ${version || '(unreadable)'}</div>
+        <div><b>Serial:</b> ${serial || '(unreadable)'}</div>
+      `;
+      log('Hardware info decoded', 'ok');
+    }
+
+    // ---- BMS config/limits decode ----
+    // Offsets confirmed from tuxntoast/eg4-ll read_bms_config(). All u16 big-endian
+    // unless noted. Temp fields stored as raw-50 (i.e. subtract 50 to get °C).
+    function renderBmsConfig(b){
+      const mv = (o) => u16(b,o) / 1000;       // millivolt -> V, 3 decimals
+      const cv = (o) => (u16(b,o) / 100).toFixed(2); // centivolt-ish pack values -> V
+      // Temps are u16 big-endian signed pairs. Under-temp fields (UT) are stored
+      // as plain signed values (can be negative directly). Over-temp fields (OT)
+      // are stored with a +50 bias (so they stay positive even near 0°C) and need
+      // -50 subtracted back out. Confirmed against a real 187-byte capture where
+      // this layout produced fully self-consistent, physically sane values
+      // (Release < Warn < Protect ordering, etc).
+      const ut = (o) => s16(b,o);
+      const ot = (o) => s16(b,o) - 50;
+
+      const rows = [
+        ['Balance Start Voltage', mv(25).toFixed(3) + ' V'],
+        ['Balance Voltage Diff', mv(27).toFixed(3) + ' V'],
+        ['Low Capacity Warning', u16(b,29) + ' %'],
+        ['Cell UV Warn', mv(35).toFixed(3) + ' V'],
+        ['Cell OV Warn', mv(47).toFixed(3) + ' V'],
+        ['Cell UV Protect', mv(37).toFixed(3) + ' V'],
+        ['Cell OV Protect', mv(49).toFixed(3) + ' V'],
+        ['Cell UV Release', mv(39).toFixed(3) + ' V'],
+        ['Cell OV Release', mv(51).toFixed(3) + ' V'],
+        ['Pack UV Warn', cv(41) + ' V'],
+        ['Pack OV Warn', cv(53) + ' V'],
+        ['Pack UV Protect', cv(43) + ' V'],
+        ['Pack OV Protect', cv(55) + ' V'],
+        ['Pack UV Release', cv(45) + ' V'],
+        ['Pack OV Release', cv(57) + ' V'],
+        ['Charge Under-Temp Warn', ut(93) + ' °C'],
+        ['Charge Under-Temp Protect', ut(95) + ' °C'],
+        ['Charge Under-Temp Release', ut(97) + ' °C'],
+        ['Charge Over-Temp Warn', ot(99) + ' °C'],
+        ['Charge Over-Temp Protect', ot(101) + ' °C'],
+        ['Charge Over-Temp Release', ot(103) + ' °C'],
+        ['Discharge Under-Temp Warn', ut(105) + ' °C'],
+        ['Discharge Under-Temp Protect', ut(107) + ' °C'],
+        ['Discharge Under-Temp Release', ut(109) + ' °C'],
+        ['Discharge Over-Temp Warn', ot(111) + ' °C'],
+        ['Discharge Over-Temp Protect', ot(113) + ' °C'],
+        ['Discharge Over-Temp Release', ot(115) + ' °C'],
+        ['PCB Over-Temp Warn', ot(117) + ' °C'],
+        ['PCB Over-Temp Protect', ot(119) + ' °C'],
+        ['Charge OC1 Protect', (u16(b,73)/100).toFixed(1) + ' A'],
+        ['Charge OC1 Delay', u16(b,83) + ' s'],
+        ['Charge OC2 Protect', (u16(b,79)/100).toFixed(1) + ' A'],
+        ['Discharge OC1 Protect', (u16(b,75)/100).toFixed(1) + ' A'],
+        ['Discharge OC1 Delay', u16(b,87) + ' s'],
+        ['Discharge OC2 Protect', (u16(b,81)/100).toFixed(1) + ' A'],
+        ['Load Short Current', (u16(b,77)/100).toFixed(1) + ' A'],
+      ];
+
+      const el = document.getElementById('bmsConfig');
+      el.style.whiteSpace = 'normal';
+      el.innerHTML = rows.map(([label,val]) =>
+        `<div style="display:flex; justify-content:space-between; padding:2px 0; border-bottom:1px solid var(--line);">
+           <span style="color:var(--text-dim);">${label}</span><span>${val}</span>
+         </div>`
+      ).join('');
+      log('BMS config/limits decoded (' + rows.length + ' values)', 'ok');
+
+      // Raw dump + per-byte index table, so offsets can be corrected for this
+      // firmware revision if any decoded value above looks wrong (the
+      // tuxntoast/eg4-ll offsets are a starting point, not guaranteed exact
+      // across all EG4 LL hardware/firmware versions).
+      const rawEl = document.getElementById('bmsConfigRaw');
+      if (rawEl){
+        rawEl.textContent = hex(b) + '  (' + b.length + ' bytes)';
+      }
+      const idxEl = document.getElementById('bmsConfigByteTable');
+      if (idxEl){
+        let rowsHtml = '<tr><th>#</th><th>Hex</th><th>Dec</th><th>#</th><th>Hex</th><th>Dec</th></tr>';
+        for (let i = 0; i < b.length; i += 2){
+          const j = i + 1;
+          rowsHtml += `<tr>
+            <td>${i}</td><td>${b[i].toString(16).padStart(2,'0').toUpperCase()}</td><td>${b[i]}</td>
+            <td>${j < b.length ? j : ''}</td><td>${j < b.length ? b[j].toString(16).padStart(2,'0').toUpperCase() : ''}</td><td>${j < b.length ? b[j] : ''}</td>
+          </tr>`;
+        }
+        idxEl.innerHTML = rowsHtml;
+      }
+    }
+
+    // ---- Graphs: smoothed, scrolling time-window, exportable (CSV + PNG) ----
+    const voltageCanvas = document.getElementById('voltageGraph');
+    const currentCanvas = document.getElementById('currentGraph');
+    const graphSpanV = document.getElementById('graphSpanV');
+    const graphSpanC = document.getElementById('graphSpanC');
+    const windowSelect = document.getElementById('windowSelect');
+
+    // History is kept generously (HISTORY_MAX, set above) so "All" and CSV export
+    // have full data; the scrolling window only affects what's drawn on screen.
+
+    document.getElementById('clearGraphBtn').addEventListener('click', () => {
+      if (history.length && !confirm('Clear all ' + history.length + ' recorded data points? This cannot be undone (export first if you want to keep them).')) return;
+      history = [];
+      drawGraphs();
+    });
+
+    windowSelect.addEventListener('change', drawGraphs);
+
+    document.getElementById('saveCsvBtn').addEventListener('click', exportCSV);
+    document.getElementById('savePngBtn').addEventListener('click', exportPNGs);
+
+    function visibleHistory(){
+      const windowMs = parseInt(windowSelect.value, 10);
+      if (!windowMs || history.length === 0) return history;
+      const cutoff = Date.now() - windowMs;
+      // Keep one point before the cutoff too, so the line doesn't start mid-air at the left edge
+      let startIdx = history.findIndex(p => p.t >= cutoff);
+      if (startIdx === -1) startIdx = history.length - 1;
+      if (startIdx > 0) startIdx -= 1;
+      return history.slice(startIdx);
+    }
+
+    function setupCanvasDPR(canvas){
+      // Render crisp on high-DPI phone screens: size the backing buffer to
+      // devicePixelRatio while keeping the CSS display size fixed.
+      const cssWidth = canvas.clientWidth || 600;
+      const cssHeight = canvas.clientHeight || 180;
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = cssWidth * dpr;
+      canvas.height = cssHeight * dpr;
+      const ctx = canvas.getContext('2d');
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      return { ctx, w: cssWidth, h: cssHeight };
+    }
+
+    function niceBounds(min, max, padFrac = 0.08){
+      if (min === max){ min -= 1; max += 1; }
+      const pad = (max - min) * padFrac;
+      return [min - pad, max + pad];
+    }
+
+    function formatSpan(ms){
+      const mins = ms / 60000;
+      if (mins < 1) return Math.round(ms/1000) + 's';
+      if (mins < 60) return Math.round(mins) + 'm';
+      return (mins/60).toFixed(1) + 'h';
+    }
+
+    // Catmull-Rom spline through a set of {x,y} points, drawn as cubic bezier
+    // segments — gives the smooth rounded "Ubuntu system monitor" look instead
+    // of sharp straight-line segments, without needing an external chart lib.
+    function drawSmoothLine(ctx, points){
+      if (points.length < 2) return;
+      if (points.length === 2){
+        ctx.moveTo(points[0].x, points[0].y);
+        ctx.lineTo(points[1].x, points[1].y);
+        return;
+      }
+      ctx.moveTo(points[0].x, points[0].y);
+      for (let i = 0; i < points.length - 1; i++){
+        const p1 = points[i];
+        const p2 = points[i + 1];
+        // Reflect the boundary point instead of duplicating it, so the tangent
+        // at the very first/last segment doesn't degenerate and overshoot
+        // ("hook") when the final segment has a sharp slope change.
+        const p0 = i === 0
+          ? { x: 2*p1.x - p2.x, y: 2*p1.y - p2.y }
+          : points[i - 1];
+        const p3 = i + 2 < points.length
+          ? points[i + 2]
+          : { x: 2*p2.x - p1.x, y: 2*p2.y - p1.y };
+
+        // Clamp tangent magnitude to the segment length so a single sharp
+        // spike can't pull control points far outside the p1-p2 chord.
+        const segLen = Math.hypot(p2.x - p1.x, p2.y - p1.y) || 1;
+        const clamp = (dx, dy) => {
+          const len = Math.hypot(dx, dy);
+          const max = segLen * 0.5;
+          if (len > max && len > 0){
+            const k = max / len;
+            return [dx * k, dy * k];
+          }
+          return [dx, dy];
+        };
+
+        const [t1x, t1y] = clamp(p2.x - p0.x, p2.y - p0.y);
+        const [t2x, t2y] = clamp(p3.x - p1.x, p3.y - p1.y);
+
+        const cp1x = p1.x + t1x / 6;
+        const cp1y = p1.y + t1y / 6;
+        const cp2x = p2.x - t2x / 6;
+        const cp2y = p2.y - t2y / 6;
+        ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, p2.x, p2.y);
+      }
+    }
+
+    function drawGraphs(){
+      drawVoltageGraph();
+      drawCurrentGraph();
+      const vis = visibleHistory();
+      if (vis.length >= 2){
+        const span = vis[vis.length-1].t - vis[0].t;
+        const label = formatSpan(span) + ' · ' + vis.length + '/' + history.length + ' pts';
+        graphSpanV.textContent = label;
+        graphSpanC.textContent = label;
+      } else {
+        graphSpanV.textContent = '';
+        graphSpanC.textContent = '';
+      }
+    }
+
+    // Redraw graphs on window resize (debounced) so they stay correctly sized
+    // when resizing the browser on desktop, or rotating a phone/tablet.
+    let resizeDebounce = null;
+    window.addEventListener('resize', () => {
+      clearTimeout(resizeDebounce);
+      resizeDebounce = setTimeout(drawGraphs, 150);
+    });
+
+    function drawVoltageGraph(){
+      const { ctx, w, h } = setupCanvasDPR(voltageCanvas);
+      ctx.clearRect(0, 0, w, h);
+      const vis = visibleHistory();
+      if (vis.length < 2){
+        ctx.fillStyle = '#6a6f74';
+        ctx.font = '12px sans-serif';
+        ctx.fillText('Waiting for data…', 10, h/2);
+        return;
+      }
+
+      const padL = 38, padR = 38, padT = 10, padB = 16;
+      const plotW = w - padL - padR, plotH = h - padT - padB;
+
+      const tMin = vis[0].t, tMax = vis[vis.length-1].t;
+      const tSpan = Math.max(tMax - tMin, 1);
+
+      const vVals = vis.map(p => p.voltage);
+      const [vMin, vMax] = niceBounds(Math.min(...vVals), Math.max(...vVals));
+      const [sMin, sMax] = [0, 100]; // SOC always 0-100 scale
+
+      const xAt = (t) => padL + ((t - tMin) / tSpan) * plotW;
+      const yAtV = (v) => padT + (1 - (v - vMin) / (vMax - vMin)) * plotH;
+      const yAtS = (s) => padT + (1 - (s - sMin) / (sMax - sMin)) * plotH;
+
+      // Gridlines
+      ctx.strokeStyle = '#2a2e31';
+      ctx.lineWidth = 1;
+      for (let i = 0; i <= 4; i++){
+        const y = padT + (i/4) * plotH;
+        ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(w - padR, y); ctx.stroke();
+      }
+
+      // Voltage axis labels (left, gold)
+      ctx.fillStyle = '#9c7327';
+      ctx.font = '10px monospace';
+      ctx.textAlign = 'right';
+      for (let i = 0; i <= 4; i++){
+        const v = vMax - (i/4) * (vMax - vMin);
+        const y = padT + (i/4) * plotH;
+        ctx.fillText(v.toFixed(2), padL - 4, y + 3);
+      }
+
+      // SOC axis labels (right, blue)
+      ctx.fillStyle = '#4a90d9';
+      ctx.textAlign = 'left';
+      for (let i = 0; i <= 4; i++){
+        const s = sMax - (i/4) * (sMax - sMin);
+        const y = padT + (i/4) * plotH;
+        ctx.fillText(Math.round(s) + '%', w - padR + 4, y + 3);
+      }
+
+      // Voltage smoothed line
+      const vPoints = vis.map(p => ({ x: xAt(p.t), y: yAtV(p.voltage) }));
+      ctx.strokeStyle = '#e8a93a';
+      ctx.lineWidth = 1.8;
+      ctx.lineJoin = 'round';
+      ctx.beginPath();
+      drawSmoothLine(ctx, vPoints);
+      ctx.stroke();
+
+      // SOC smoothed line
+      const sPoints = vis.map(p => ({ x: xAt(p.t), y: yAtS(p.soc) }));
+      ctx.strokeStyle = '#4a90d9';
+      ctx.lineWidth = 1.8;
+      ctx.beginPath();
+      drawSmoothLine(ctx, sPoints);
+      ctx.stroke();
+
+      // Current-value dot at the right edge (scrolling-monitor style "now" marker)
+      const lastV = vis[vis.length - 1];
+      ctx.fillStyle = '#e8a93a';
+      ctx.beginPath();
+      ctx.arc(xAt(lastV.t), yAtV(lastV.voltage), 3, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#4a90d9';
+      ctx.beginPath();
+      ctx.arc(xAt(lastV.t), yAtS(lastV.soc), 3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    function drawCurrentGraph(){
+      const { ctx, w, h } = setupCanvasDPR(currentCanvas);
+      ctx.clearRect(0, 0, w, h);
+      const vis = visibleHistory();
+      if (vis.length < 2){
+        ctx.fillStyle = '#6a6f74';
+        ctx.font = '12px sans-serif';
+        ctx.fillText('Waiting for data…', 10, h/2);
+        return;
+      }
+
+      const padL = 42, padR = 10, padT = 10, padB = 16;
+      const plotW = w - padL - padR, plotH = h - padT - padB;
+
+      const tMin = vis[0].t, tMax = vis[vis.length-1].t;
+      const tSpan = Math.max(tMax - tMin, 1);
+
+      const cVals = vis.map(p => p.current);
+      let [cMin, cMax] = niceBounds(Math.min(...cVals, 0), Math.max(...cVals, 0));
+
+      const xAt = (t) => padL + ((t - tMin) / tSpan) * plotW;
+      const yAt = (c) => padT + (1 - (c - cMin) / (cMax - cMin)) * plotH;
+      const zeroY = yAt(0);
+
+      // Gridlines
+      ctx.strokeStyle = '#2a2e31';
+      ctx.lineWidth = 1;
+      for (let i = 0; i <= 4; i++){
+        const y = padT + (i/4) * plotH;
+        ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(w - padR, y); ctx.stroke();
+      }
+      // Zero line, brighter
+      ctx.strokeStyle = '#4a4e52';
+      ctx.beginPath(); ctx.moveTo(padL, zeroY); ctx.lineTo(w - padR, zeroY); ctx.stroke();
+
+      // Axis labels
+      ctx.fillStyle = '#9aa0a6';
+      ctx.font = '10px monospace';
+      ctx.textAlign = 'right';
+      for (let i = 0; i <= 4; i++){
+        const c = cMax - (i/4) * (cMax - cMin);
+        const y = padT + (i/4) * plotH;
+        ctx.fillText(c.toFixed(1), padL - 4, y + 3);
+      }
+
+      const points = vis.map(p => ({ x: xAt(p.t), y: yAt(p.current) }));
+
+      // Smoothed filled area: build the smooth path, then close down to the zero
+      // line and clip-fill it green above / red below, same as before but curved.
+      ctx.beginPath();
+      drawSmoothLine(ctx, points);
+      ctx.lineTo(points[points.length-1].x, zeroY);
+      ctx.lineTo(points[0].x, zeroY);
+      ctx.closePath();
+      ctx.save();
+      ctx.clip();
+      ctx.fillStyle = 'rgba(62,207,106,0.18)';
+      ctx.fillRect(padL, padT, plotW, zeroY - padT);
+      ctx.fillStyle = 'rgba(224,82,74,0.18)';
+      ctx.fillRect(padL, zeroY, plotW, (padT + plotH) - zeroY);
+      ctx.restore();
+
+      // Smoothed current line itself
+      ctx.strokeStyle = '#e8a93a';
+      ctx.lineWidth = 1.8;
+      ctx.lineJoin = 'round';
+      ctx.beginPath();
+      drawSmoothLine(ctx, points);
+      ctx.stroke();
+
+      // Current-value dot at the right edge
+      const lastP = points[points.length - 1];
+      ctx.fillStyle = vis[vis.length-1].current >= 0 ? '#3ecf6a' : '#e0524a';
+      ctx.beginPath();
+      ctx.arc(lastP.x, lastP.y, 3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // ---- Export: CSV (full history) and PNG (current view of both graphs) ----
+    function timestampForFilename(){
+      const d = new Date();
+      const pad = (n) => String(n).padStart(2,'0');
+      return `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+    }
+
+    function triggerDownload(blob, filename){
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+
+    function exportCSV(){
+      if (history.length === 0){
+        alert('No data recorded yet.');
+        return;
+      }
+      const rows = ['timestamp_iso,unix_ms,voltage_v,current_a,soc_percent'];
+      history.forEach(p => {
+        rows.push(`${new Date(p.t).toISOString()},${p.t},${p.voltage.toFixed(3)},${p.current.toFixed(2)},${p.soc}`);
+      });
+      const blob = new Blob([rows.join('\n')], { type: 'text/csv' });
+      triggerDownload(blob, `eg4-ll-history-${timestampForFilename()}.csv`);
+      log(`Exported ${history.length} rows to CSV`, 'ok');
+    }
+
+    function exportPNGs(){
+      if (history.length === 0){
+        alert('No data recorded yet.');
+        return;
+      }
+      voltageCanvas.toBlob(blob => {
+        triggerDownload(blob, `eg4-ll-voltage-soc-${timestampForFilename()}.png`);
+      });
+      currentCanvas.toBlob(blob => {
+        triggerDownload(blob, `eg4-ll-current-${timestampForFilename()}.png`);
+      });
+      log('Exported both graphs as PNG', 'ok');
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,7 @@
+{
+  "name": "EG4 LL Battery Monitor",
+  "description": "Direct BLE integration for the EG4 LL 400Ah LiFePO4 battery. Provides voltage, current, SOC, cell voltages, temperatures, energy tracking, and BMS protection limits — reverse engineered from the official app.",
+  "render_readme": true,
+  "homeassistant": "2024.1.0",
+  "iot_class": "local_polling"
+}

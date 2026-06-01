@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1d2022"/>
+      <stop offset="100%" stop-color="#0b0c0d"/>
+    </linearGradient>
+    <linearGradient id="bolt" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f3c267"/>
+      <stop offset="100%" stop-color="#c9871f"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="512" height="512" rx="96" fill="url(#bg)"/>
+  <rect x="6" y="6" width="500" height="500" rx="90" fill="none" stroke="#2a2e31" stroke-width="4"/>
+
+  <!-- Battery body -->
+  <rect x="116" y="160" width="240" height="200" rx="20" fill="none" stroke="#9aa0a6" stroke-width="14"/>
+  <!-- Battery terminal nub -->
+  <rect x="356" y="210" width="26" height="100" rx="8" fill="#9aa0a6"/>
+
+  <!-- Charge level fill (gold, partial showing "active/monitoring") -->
+  <rect x="132" y="176" width="160" height="168" rx="10" fill="#e8a93a" opacity="0.18"/>
+
+  <!-- Lightning bolt, centered -->
+  <path d="M 268 178 L 196 280 L 240 280 L 224 342 L 300 240 L 254 240 Z"
+        fill="url(#bolt)" stroke="#0b0c0d" stroke-width="4" stroke-linejoin="round"/>
+
+  <!-- Small cell tick marks along the bottom of the battery, evoking the 4-cell pack -->
+  <g stroke="#3ecf6a" stroke-width="6" opacity="0.85">
+    <line x1="138" y1="348" x2="138" y2="336"/>
+    <line x1="190" y1="348" x2="190" y2="336"/>
+    <line x1="242" y1="348" x2="242" y2="336"/>
+    <line x1="294" y1="348" x2="294" y2="336"/>
+  </g>
+</svg>

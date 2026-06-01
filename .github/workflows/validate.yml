@@ -1,0 +1,39 @@
+name: Validate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install bleak bleak-retry-connector
+
+      - name: Syntax check
+        run: |
+          for f in custom_components/eg4_ll_direct/*.py; do
+            python -m py_compile "$f" && echo "$f: OK"
+          done
+
+      - name: Validate manifest
+        run: |
+          python -c "
+          import json
+          with open('custom_components/eg4_ll_direct/manifest.json') as f:
+              m = json.load(f)
+          assert m.get('domain') == 'eg4_ll_direct'
+          assert 'bleak-retry-connector' in str(m.get('requirements', []))
+          assert 'bluetooth' in m.get('dependencies', [])
+          print('manifest.json: OK')
+          "
