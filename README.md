@@ -54,7 +54,7 @@ The device **does not auto-stream** — a poll command must be written after sub
 #### HACS (recommended)
 
 1. In HACS → Integrations → ⋮ → Custom repositories
-2. Add `https://github.com/YOUR_USERNAME/eg4-ll-battery-monitor` as **Integration**
+2. Add `https://github.com/wilcox97/eg4-ll-battery-monitor` as **Integration**
 3. Install **EG4 LL Battery (Direct MAC)**
 4. Restart Home Assistant
 5. Settings → Devices & Services → Add Integration → search **EG4 LL Battery**
