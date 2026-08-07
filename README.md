@@ -1,5 +1,7 @@
 # EG4 LL Battery Monitor
 
+![Validate](https://github.com/wilcox97/eg4-ll-battery-monitor/actions/workflows/validate.yml/badge.svg) ![GitHub release](https://img.shields.io/github/v/release/wilcox97/eg4-ll-battery-monitor) ![HACS](https://img.shields.io/badge/HACS-Custom-orange.svg)
+
 A complete monitoring solution for the **EG4 LL 400Ah LiFePO4 battery** over Bluetooth Low Energy (BLE), consisting of two components:
 
 1. **Home Assistant Custom Integration** (`eg4_ll_direct`) — full sensor suite for HA dashboards, automations, and the Energy dashboard
