@@ -372,7 +372,23 @@ class EG4LLClient:
 
         try:
             await client.connect()
-            await client.start_notify(NOTIFY_UUID, _on_notify)
+
+            # Wait for GATT service discovery to complete before subscribing.
+            # BlueZ finishes the link-layer connection slightly before GATT
+            # characteristics are populated — calling start_notify() too quickly
+            # throws "Characteristic not found" even though the device is connected.
+            for attempt in range(10):
+                try:
+                    await client.start_notify(NOTIFY_UUID, _on_notify)
+                    break  # success
+                except Exception as exc:
+                    if "not found" in str(exc).lower() and attempt < 9:
+                        _LOGGER.debug(
+                            "EG4 LL: GATT not ready yet (attempt %d/10), waiting 1s...", attempt + 1
+                        )
+                        await asyncio.sleep(1.0)
+                    else:
+                        raise
 
             # Fetch static info once per client instance, not every poll.
             if self._hw_info is None:
