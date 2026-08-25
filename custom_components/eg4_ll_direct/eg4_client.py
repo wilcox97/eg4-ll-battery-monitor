@@ -303,6 +303,7 @@ class EG4LLClient:
                 device=self._ble_device,
                 name=self._address,
                 max_attempts=3,
+                use_services_cache=False,  # Disable stale GATT cache from prior connections
             )
         # Fallback: no BLEDevice yet (shouldn't happen after __init__.py fix,
         # but kept as a safety net)
